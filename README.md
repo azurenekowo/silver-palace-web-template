@@ -4,10 +4,6 @@ Vue 3 + TypeScript + Vite template with a WebGL shader background: full-screen a
 
 ## Demo
 
-<video src="demo.mp4" controls muted width="100%"></video>
-
-The clip shows all 3 transitions — `h_bg1` → `h_bg2` → `h_bg3` → back — chained back-to-back so each section is visible before it wipes away (scrubbing with the wheel would slow the wipe mid-progress; keyboard/dot navigation plays it end-to-end). If your viewer does not render embedded video, open [demo.mp4](demo.mp4) directly.
-
 ## Getting started
 
 ```bash
