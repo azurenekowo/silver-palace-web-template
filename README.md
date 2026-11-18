@@ -3,6 +3,7 @@
 Vue 3 + TypeScript + Vite template with a WebGL shader background: full-screen artworks cross-fade through an organic "ink wipe" instead of a plain fade. This document explains how the effect works.
 
 ## Demo
+https://github.com/user-attachments/assets/752ab7ea-945d-4b35-9295-bcee6d657bae
 
 ## Getting started
 
