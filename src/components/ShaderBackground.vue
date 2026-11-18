@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, shallowRef } from "vue";
 import { ShaderBackground } from "../three/ShaderBackground";
 
-const canvasRef = ref<HTMLCanvasElement | null>(null);
-const background = ref<ShaderBackground | null>(null);
+const canvasRef = shallowRef<HTMLCanvasElement | null>(null);
+const background = shallowRef<ShaderBackground | null>(null);
 
 function onMouseMove(e: MouseEvent) {
   background.value?.setMouse(
