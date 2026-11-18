@@ -246,7 +246,7 @@ export class ShaderBackground {
   private mouse = new THREE.Vector2(0.5, 0.5);
   private mouseTarget = new THREE.Vector2(0.5, 0.5);
 
-  enterGuardMs = 350;
+  enterGuardMs = 100;
   triggerGuardMs = 150;
   private lastEnter = 0;
   private lastTrigger = 0;
@@ -340,8 +340,8 @@ export class ShaderBackground {
     this.lastTrigger = now;
     this.nextSection = index;
     this.progress = 0;
-    this.targetProgress = opts?.mode === "time" ? 1 : 0.02;
-    this.wheelVelocity = opts?.mode === "time" ? 0 : 0.012;
+    this.targetProgress = opts?.mode === "time" ? 1 : 0;
+    this.wheelVelocity = 0;
     this.transitionMode = opts?.mode ?? "wheel";
     this.transitioning = true;
 
@@ -358,8 +358,14 @@ export class ShaderBackground {
 
   stepWheelTransition(delta: number) {
     if (!this.transitioning) return;
-    this.wheelVelocity += delta * 0.22;
-    this.wheelVelocity = Math.max(-0.045, Math.min(0.045, this.wheelVelocity));
+    // Each tick of input maps to a fixed chunk of progress directly, so
+    // identical wheel/touch input always moves the wave the same amount
+    // no matter how fast or slow it arrives — timing no longer changes
+    // the outcome.
+    this.targetProgress = Math.max(0, Math.min(1, this.targetProgress + delta));
+    // The eased stop is part of the behavior: after the input ends, the
+    // decaying velocity always carries the wave a little further.
+    this.wheelVelocity = Math.max(-0.02, Math.min(0.02, delta * 0.1));
   }
 
   private cancelTransition() {
@@ -420,18 +426,30 @@ export class ShaderBackground {
         this.progress += (dt / 1000) * this.timeRate;
         if (this.progress >= 1) this.finishTransition();
       } else {
+        // Wheel/touch scrub with a soft glide: velocity eases the wave along
+        // and decays when the input stops. Once the glide ends past the
+        // commit threshold the change auto-continues to the next section;
+        // below the hold band the wave keeps its partial progress instead
+        // of snapping back. Reaching either end with input finishes or
+        // cancels immediately.
         this.targetProgress = Math.min(
           1,
           Math.max(0, this.targetProgress + this.wheelVelocity),
         );
-        this.wheelVelocity *= 0.89;
+        this.wheelVelocity *= 0.8;
         if (Math.abs(this.wheelVelocity) < 0.0002) {
           this.wheelVelocity = 0;
-          if (this.targetProgress >= 0.92) this.targetProgress = 1;
-          else if (this.targetProgress <= 0.08) this.targetProgress = 0;
+          // Input stopped and momentum died: past the commit threshold the
+          // change auto-continues; near the start it rolls back; in between
+          // the partial progress is kept where it stopped, so more input
+          // resumes from there instead of losing ground.
+          if (this.targetProgress >= 0.85) this.targetProgress = 1;
+          else if (this.targetProgress <= 0.15) this.targetProgress = 0;
         }
 
-        this.progress += (this.targetProgress - this.progress) * 0.16;
+        // The wave travels to its target at a readable pace: strong response
+        // to each input tick, but never an instant snap.
+        this.progress += (this.targetProgress - this.progress) * 0.08;
 
         if (this.progress >= 0.992 && this.targetProgress >= 0.992) {
           this.finishTransition();

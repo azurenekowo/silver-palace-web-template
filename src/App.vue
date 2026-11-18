@@ -38,8 +38,10 @@ function onWheel(e: WheelEvent) {
   const clampedDelta = Math.max(-90, Math.min(90, e.deltaY));
 
   if (bg.isTransitioning) {
-    const directedDelta = (clampedDelta * wipeDirection.value) / 950;
-    bg.stepWheelTransition(directedDelta);
+    // Wheel-to-progress scale; smaller = fewer mouse notches per transition.
+    // 600 => each notch adds ~0.15 directly; the engine's post-release
+    // glide tops each notch up to ~0.25 effective => 4 notches per change.
+    bg.stepWheelTransition((clampedDelta * wipeDirection.value) / 600);
     return;
   }
 
@@ -48,6 +50,53 @@ function onWheel(e: WheelEvent) {
   const direction: 1 | -1 = accum > 0 ? 1 : -1;
   accum = 0;
   goTo(activeSection.value + direction, direction, "wheel");
+  // The notch that crosses the threshold must not be swallowed: it starts
+  // the change and visibly drives the wave in the same gesture.
+  if (bg.isTransitioning)
+    bg.stepWheelTransition((clampedDelta * direction) / 600);
+}
+
+// A touch swipe moves the wave the same deterministic way the wheel does:
+// each swipe is exactly one 0.25 chunk of progress toward the neighbour
+// section (or a scrub-back when it opposes an active transition). The
+// wheel's commit/hold/rollback thresholds apply on mobile too.
+let touchStartX = 0;
+let touchStartY: number | null = null;
+const SWIPE_THRESHOLD = 36;
+const SWIPE_CHUNK = 0.25;
+
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) {
+    touchStartY = null;
+    return;
+  }
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}
+
+function onTouchEnd(e: TouchEvent) {
+  if (touchStartY === null) return;
+  const t = e.changedTouches[0];
+  const dy = touchStartY - t.clientY; // positive = swipe up = next section
+  const dx = Math.abs(touchStartX - t.clientX);
+  touchStartY = null;
+
+  if (Math.abs(dy) < SWIPE_THRESHOLD || Math.abs(dy) < dx) return;
+
+  const bg = getBg();
+  if (!bg) return;
+
+  const swipeSign: 1 | -1 = dy > 0 ? 1 : -1;
+
+  if (!bg.isTransitioning) {
+    goTo(activeSection.value + swipeSign, swipeSign, "wheel");
+    if (!bg.isTransitioning) return; // start was guarded, ignore this swipe
+  }
+
+  // Signed chunk: aligned with the active direction it pushes forward,
+  // against it the swipe scrubs the wave back. The engine's decaying
+  // velocity gives every input the same eased stop.
+  bg.stepWheelTransition(swipeSign * wipeDirection.value * SWIPE_CHUNK);
 }
 
 function onKey(e: KeyboardEvent) {
@@ -78,9 +127,13 @@ let cleanup: (() => void) | null = null;
 
 onMounted(() => {
   window.addEventListener("wheel", onWheel, { passive: true });
+  window.addEventListener("touchstart", onTouchStart, { passive: true });
+  window.addEventListener("touchend", onTouchEnd, { passive: true });
   window.addEventListener("keydown", onKey);
   cleanup = () => {
     window.removeEventListener("wheel", onWheel);
+    window.removeEventListener("touchstart", onTouchStart);
+    window.removeEventListener("touchend", onTouchEnd);
     window.removeEventListener("keydown", onKey);
   };
 });
